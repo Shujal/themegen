@@ -1,0 +1,85 @@
+#!/usr/bin/env python 
+
+from kmeans import kmeans
+import colorsys
+import sys
+try:
+    import Image
+except ImportError:
+    from PIL import Image
+
+
+brightness = lambda r,g,b:r*r+g*g+b*b-max(r,g,b)**2
+def saturation(r,g,b):
+    ma=max(r,g,b)
+    mi=min(r,g,b)
+    s=ma+mi
+    d=ma-mi
+    if d==0:
+        return 0
+    return 1
+
+def normalize(r,g,b,minv,maxv):
+    r=r/256.0
+    g=g/256.0
+    b=b/256.0
+    h,s,v = colorsys.rgb_to_hsv(r,g,b)
+    minv=minv/256.0
+    maxv=maxv/256.0
+    if v<minv:
+        v=minv
+    if v>maxv:
+        v=maxv
+    r2,g2,b2 = colorsys.hsv_to_rgb(h,s,v)
+    return (int(r2*256),int(g2*256),int(b2*256))
+
+hex = lambda r,g,b:"#{:02x}{:02x}{:02x}".format(r,g,b)
+
+
+
+if __name__ == '__main__':
+    if len(sys.argv)<=1:
+        print "Usage: {0} <inputfile>".format(sys.argv[0])
+        sys.exit()
+    infile = sys.argv[1]
+    outxres=infile+".xres"
+    outi3=infile+".i3"
+    outsh=infile+".sh"
+    try:
+        img = Image.open(infile);
+    except IOError:
+        print "Error! File could not be opened!"
+        sys.exit()
+    img.thumbnail((200,200))
+    data = list(img.getdata())
+    cols = kmeans(data,16,1)
+    cols.sort(key=lambda c:min(c[0])-max(c[0]));
+    i=0
+    xresStr=''
+    shStr=''
+    i3Str=''
+    for col in cols:
+        c=col[0]
+#        if i==0:
+#            c=normalize(c[0],c[1],c[2],24,100)
+#        elif i==8:
+#            c=normalize(c[0],c[1],c[2],128,192)
+#        if i<8:
+        c=normalize(c[0],c[1],c[2],120,224)
+#        else:
+#            c=normalize(c[0],c[1],c[2],64,224)
+        xresStr+='XTerm*color{}: {}\n'.format(i,hex(*c))
+        i3Str+='set $color{} {}\n'.format(i,hex(*c))
+        shStr+='color{}={}\n'.format(i,hex(*c))
+        i+=1
+    xresStr+='XTerm*background:#111111\n'
+    xresStr+='XTerm*foreground:#eeeeee\n'
+    xresStr+='XTerm*cursorColor:cccccc\n'
+    with open(outxres,'w') as f:
+        f.write(xresStr)
+    with open(outi3,'w') as f:
+        f.write(i3Str)
+    with open(outsh,'w') as f:
+        f.write(shStr)
+
+
